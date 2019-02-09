@@ -1,0 +1,143 @@
+#!/bin/bash
+function refresh_index(){
+    main_page="$(curl -s "${lazych_url}")"
+}
+
+function list_threads(){
+    while curl -sfI "${current_board}/${i}" >&/dev/null; do ((i++)); done
+    
+    if $only_count_threads; then
+        printf 'This board has %i threads\n' $((i-1))
+    else
+        for((j=1;j<i;j++)); do curl -s "${current_board}/${j}" 2>/dev/null | head -n2; done
+    fi
+    
+    printf '\e[0m\nEnter a number to navigate to thread: '
+    read -r thread_number
+}
+
+function check_board(){
+    curl -sfI "${lazych_url}/${1}/" >&/dev/null && \
+        current_board="${lazych_url}/${1}" && \
+        tput reset && \
+        echo "${main_page}" | grep "/${1}/"
+}
+
+function load_home(){
+    tput reset
+    refresh_index
+    echo "${main_page}"
+    
+    while read -rsn1 user_input; do
+        check_board "${user_input}" && break
+        tput reset
+        echo "${main_page}"
+        echo 'Invalid thread.'
+    done
+    
+    list_threads
+}
+
+function load_thread(){
+    tput reset
+    
+    until curl -sfI "${current_thread}" >&/dev/null; do
+        tput reset
+        read -rp 'Thread not found. Enter a number to navigate to thread: ' thread_number
+        current_thread="${current_board}/${thread_number}/"
+    done
+    
+    thread_data="$(curl -s "${current_thread}" 2>/dev/null)"
+    echo "${thread_data}"
+}
+
+lazych_url='https://lazych.net'; only_count_threads=false; i=1
+refresh_index
+
+while getopts 'b:t:c' flag; do
+    case "${flag}" in
+        b)
+            check_board "${OPTARG}"
+            current_board="${lazych_url}/${OPTARG}"
+            ;;
+        t)
+            thread_number="${OPTARG}"
+            ;;
+        c)
+            only_count_threads=true
+            ;;
+        *)
+            echo 'Invalid flag'
+            ;;
+    esac
+done
+
+[[ -z "${current_board}" && -n "${thread_number}" || -z "${current_board}" ]] && load_home && echo "${main_page}"
+[[ -n "${current_board}" && -z "${thread_number}" ]] && list_threads
+current_thread="${current_board}/${thread_number}"; load_thread
+
+while read -rn1 user_input; do
+    [[ "${user_input}" == '/' ]] && read -r user_input
+    reload_thread=true
+    case "${user_input}" in
+        'help')
+            tput reset
+            printf 'g:help,p:new post,d:delete post,\nr:refresh,l:read in less,h:home,\nn:next thread,b:previous thread,c:custom thread,\nq:quit,' | column -ts,
+            printf '\nPress any key to continue.'
+            read -rsn1
+            echo "${thread_data}"
+            reload_thread=false
+            ;;
+        r)
+            true
+            ;;
+        l)
+            echo "${thread_data}" | sed -r "s/\x1B\[([0-9]{1,2}(;[0-9]{1,2})?)?[mGK]//g" | less
+            reload_thread=false
+            ;;
+        h)
+            load_home
+            current_thread="${current_board}/${thread_number}/"
+            ;;
+        n|C)
+            ((thread_number<i-1 && thread_number++))
+            current_thread="${current_board}/${thread_number}/"
+            ;;
+        b|D)
+            ((thread_number>1 && thread_number--))
+            current_thread="${current_board}/${thread_number}/"
+            ;;
+        c)
+            printf '\n\e[0mEnter a number to navigate to thread: '
+            read -r thread_number
+            current_thread="${current_board}/${thread_number}/"
+            ;;
+        q)
+            printf '\n'
+            exit
+            ;;
+        'replies')
+            curl -s "${lazych_url}/replies"
+            printf 'To clear reply list type /delreplies\n'
+            reload_thread=false
+            ;;
+        'delreplies')
+            curl -s "${lazych_url}/replies?clear=y"
+            ;;
+        'post')
+            vim /tmp/comment$$ >/dev/tty
+            comment="$(cat /tmp/comment$$)"
+            [[ -n "${comment}" ]] && curl -s "${current_thread}" -F $"comment=${comment}"
+            ;;
+        'delpost')
+            read -rp 'Enter post number to delete: ' post_number
+            curl -s "${current_thread/#${lazych_url}/${lazych_url}/delete}${post_number}"
+            sleep 3
+            ;;
+        *)
+            printf 'Invalid input. Type /help for a list of hotkeys\n'
+            reload_thread=false
+            ;;
+    esac
+    $reload_thread && load_thread
+done
