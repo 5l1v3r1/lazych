@@ -1,10 +1,12 @@
 #!/bin/bash
+# TODO: Notifications
 function refresh_index(){
     main_page="$(curl -s "${lazych_url}")"
 }
 
 function list_threads(){
     while curl -sfI "${current_board}/${i}" >&/dev/null; do ((i++)); done
+    $1 && return
     
     if $only_count_threads; then
         printf 'This board has %i threads\n' $((i-1))
@@ -35,7 +37,7 @@ function load_home(){
         echo 'Invalid thread.'
     done
     
-    list_threads
+    list_threads true
 }
 
 function load_thread(){
@@ -72,12 +74,15 @@ while getopts 'b:t:c' flag; do
     esac
 done
 
+initially_count=false
 [[ -z "${current_board}" && -n "${thread_number}" || -z "${current_board}" ]] && load_home && echo "${main_page}"
-[[ -n "${current_board}" && -z "${thread_number}" ]] && list_threads
+[[ -n "${current_board}" && -n "${thread_number}" ]] && initially_count=true
+list_threads $initially_count
+
 current_thread="${current_board}/${thread_number}"; load_thread
 
-while read -rn1 user_input; do
-    [[ "${user_input}" == '/' ]] && read -r user_input
+while read -rsn1 user_input; do
+    [[ "${user_input}" == '/' ]] && printf '/' && read -r user_input
     reload_thread=true
     case "${user_input}" in
         'help')
