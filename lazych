@@ -75,7 +75,7 @@ while getopts 'b:t:c' flag; do
 done
 
 initially_count=false
-[[ -z "${current_board}" && -n "${thread_number}" || -z "${current_board}" ]] && load_home && echo "${main_page}"
+[[ -z "${current_board}" && -n "${thread_number}" || -z "${current_board}" ]] && load_home
 [[ -n "${current_board}" && -n "${thread_number}" ]] && initially_count=true
 list_threads $initially_count
 
