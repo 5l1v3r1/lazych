@@ -1,5 +1,34 @@
 #!/bin/bash
 # TODO: Notifications
+function help_user(){
+    tput reset
+    cat <<- EOF
+		Hotkeys:
+		    l - read in less
+		    h - homepage
+		    n/right arrow - next thread
+		    b/left arrow - last thread'
+		    c - custom thread
+		    r - refresh
+		    q - quit
+		
+		Commands:
+		    /replies - see replies
+		    /delrepies - delete replies
+		    /post - make post
+		    /delpost - delete post
+		    
+		Flags:
+		    b - board
+		    t - thread
+		    c - only count threads (don't display headings)
+		    h - help
+		    
+		Press any key to continue.
+	EOF
+    read -rsn1
+}
+
 function refresh_index(){
     main_page="$(curl -s "${lazych_url}")"
 }
@@ -29,8 +58,9 @@ function load_home(){
     tput reset
     refresh_index
     echo "${main_page}"
+    printf 'Type board to visit: '
     
-    while read -rsn1 user_input; do
+    while read -r user_input; do
         check_board "${user_input}" && break
         tput reset
         echo "${main_page}"
@@ -56,7 +86,7 @@ function load_thread(){
 lazych_url='https://lazych.net'; only_count_threads=false; i=1
 refresh_index
 
-while getopts 'b:t:c' flag; do
+while getopts 'b:t:ch' flag; do
     case "${flag}" in
         b)
             check_board "${OPTARG}"
@@ -67,6 +97,9 @@ while getopts 'b:t:c' flag; do
             ;;
         c)
             only_count_threads=true
+            ;;
+        h)
+            help_user
             ;;
         *)
             echo 'Invalid flag'
@@ -85,17 +118,7 @@ while read -rsn1 user_input; do
     [[ "${user_input}" == '/' ]] && printf '/' && read -r user_input
     reload_thread=true
     case "${user_input}" in
-        'help')
-            tput reset
-            printf 'g:help,p:new post,d:delete post,\nr:refresh,l:read in less,h:home,\nn:next thread,b:previous thread,c:custom thread,\nq:quit,' | column -ts,
-            printf '\nPress any key to continue.'
-            read -rsn1
-            echo "${thread_data}"
-            reload_thread=false
-            ;;
-        r)
-            true
-            ;;
+        r);;
         l)
             echo "${thread_data}" | sed -r "s/\x1B\[([0-9]{1,2}(;[0-9]{1,2})?)?[mGK]//g" | less
             reload_thread=false
@@ -130,7 +153,8 @@ while read -rsn1 user_input; do
             curl -s "${lazych_url}/replies?clear=y"
             ;;
         'post')
-            vim /tmp/comment$$ >/dev/tty
+            [[ -z $EDITOR ]] && EDITOR=vim
+            $EDITOR /tmp/comment$$ >/dev/tty
             comment="$(cat /tmp/comment$$)"
             [[ -n "${comment}" ]] && curl -s "${current_thread}" -F $"comment=${comment}"
             ;;
@@ -138,6 +162,11 @@ while read -rsn1 user_input; do
             read -rp 'Enter post number to delete: ' post_number
             curl -s "${current_thread/#${lazych_url}/${lazych_url}/delete}${post_number}"
             sleep 3
+            ;;
+        'help')
+            help_user
+            echo "${thread_data}"
+            reload_thread=false
             ;;
         *)
             printf 'Invalid input. Type /help for a list of hotkeys\n'
