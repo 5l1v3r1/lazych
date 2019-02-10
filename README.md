@@ -1,5 +1,5 @@
 # Install guide
-wget https://raw.githubusercontent.com/deplexor/lazych/master/lazych && chmod +x lazych
+`wget https://raw.githubusercontent.com/deplexor/lazych/master/lazych && chmod +x lazych`
 
 (Optionally add it to your /usr/local/bin/ or $PATH)
 
