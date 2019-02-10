@@ -3,6 +3,7 @@
 function help_user(){
     tput reset
     cat <<- EOF
+		./lazych [flags...]
 		Hotkeys:
 		    l - read in less
 		    h - homepage
